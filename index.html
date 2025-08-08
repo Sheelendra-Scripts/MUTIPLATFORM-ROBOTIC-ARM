@@ -303,7 +303,10 @@
             try {
                 addLog('Requesting Bluetooth device...');
                 // Accept all devices; we will attempt to find a writable characteristic
-                bluetoothDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [] });
+                bluetoothDevice = await navigator.bluetooth.requestDevice({ 
+                    acceptAllDevices: true, 
+                    optionalServices: ['00001800-0000-1000-8000-00805f9b34fb'] 
+                });
                 bluetoothDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
 
                 addLog(`Connecting to GATT server (${bluetoothDevice.name || 'Unknown'})...`);
