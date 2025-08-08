@@ -294,67 +294,66 @@
         }
 
         // ===== BLE (Web Bluetooth) =====
-        async function connectBluetooth() {
-            if (!('bluetooth' in navigator)) {
-                addLog('Web Bluetooth API not supported in this browser.', 'error');
-                return;
-            }
+async function connectBluetooth() {
+    if (!('bluetooth' in navigator)) {
+        addLog('Web Bluetooth API not supported in this browser.', 'error');
+        return;
+    }
 
+    try {
+        addLog('Requesting Bluetooth device...');
+
+        // FIX: include optionalServices so Chrome allows access to them later
+        bluetoothDevice = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: [
+                'generic_access',       // standard GAP service
+                'generic_attribute',    // standard GATT service
+                '6e400001-b5a3-f393-e0a9-e50e24dcca9e' // Nordic UART Service UUID (common for BLE serial)
+                // Add more UUIDs here if your arm uses a custom service
+            ]
+        });
+
+        bluetoothDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
+
+        addLog(`Connecting to GATT server (${bluetoothDevice.name || 'Unknown'})...`);
+        const server = await bluetoothDevice.gatt.connect();
+
+        addLog('Discovering services...');
+        const services = await server.getPrimaryServices();
+
+        addLog(`Found ${services.length} service(s), searching for writable characteristic...`);
+        for (const svc of services) {
             try {
-                addLog('Requesting Bluetooth device...');
-                // Accept all devices; we will attempt to find a writable characteristic
-                bluetoothDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [] });
-                bluetoothDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
-
-                addLog(`Connecting to GATT server (${bluetoothDevice.name || 'Unknown'})...`);
-                const server = await bluetoothDevice.gatt.connect();
-
-                addLog('Discovering services...');
-                const services = await server.getPrimaryServices();
-
-                addLog(`Found ${services.length} service(s), searching for writable characteristic...`);
-                // Try to find any writable characteristic
-                for (const svc of services) {
-                    try {
-                        const chars = await svc.getCharacteristics();
-                        for (const ch of chars) {
-                            if (ch.properties.write || ch.properties.writeWithoutResponse) {
-                                bluetoothCharacteristic = ch;
-                                addLog('Writable characteristic found. BLE link ready.', 'received');
-                                connectedVia = 'ble';
-                                updateConnectionStatus();
-                                return;
-                            }
-                        }
-                    } catch (e) {
-                        // ignore and continue
+                const chars = await svc.getCharacteristics();
+                for (const ch of chars) {
+                    if (ch.properties.write || ch.properties.writeWithoutResponse) {
+                        bluetoothCharacteristic = ch;
+                        addLog('Writable characteristic found. BLE link ready.', 'received');
+                        connectedVia = 'ble';
+                        updateConnectionStatus();
+                        return;
                     }
                 }
-
-                addLog('No writable characteristic found on the device. BLE may not be SPP-compatible.', 'error');
-                // disconnect if nothing usable
-                if (bluetoothDevice.gatt.connected) bluetoothDevice.gatt.disconnect();
-                bluetoothDevice = null;
-                bluetoothCharacteristic = null;
-                connectedVia = null;
-                updateConnectionStatus();
-            } catch (err) {
-                addLog(`Bluetooth connect failed: ${err.message}`, 'error');
-                bluetoothDevice = null;
-                bluetoothCharacteristic = null;
-                connectedVia = null;
-                updateConnectionStatus();
+            } catch (e) {
+                // ignore and continue
             }
         }
 
-        function onBleDisconnected() {
-            addLog('BLE device disconnected', 'error');
-            bluetoothDevice = null;
-            bluetoothCharacteristic = null;
-            if (connectedVia === 'ble') connectedVia = null;
-            isArmConnected = false;
-            updateConnectionStatus();
-        }
+        addLog('No writable characteristic found on the device. BLE may not be SPP-compatible.', 'error');
+        if (bluetoothDevice.gatt.connected) bluetoothDevice.gatt.disconnect();
+        bluetoothDevice = null;
+        bluetoothCharacteristic = null;
+        connectedVia = null;
+        updateConnectionStatus();
+    } catch (err) {
+        addLog(`Bluetooth connect failed: ${err.message}`, 'error');
+        bluetoothDevice = null;
+        bluetoothCharacteristic = null;
+        connectedVia = null;
+        updateConnectionStatus();
+    }
+}
 
         // ===== Web Serial (USB) =====
         async function connectSerial() {
