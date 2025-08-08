@@ -295,60 +295,47 @@
 
         // ===== BLE (Web Bluetooth) =====
         async function connectBluetooth() {
-            if (!('bluetooth' in navigator)) {
-                addLog('Web Bluetooth API not supported in this browser.', 'error');
-                return;
-            }
-
+    try {
+        addLog('Requesting Bluetooth device...');
+        bluetoothDevice = await navigator.bluetooth.requestDevice({ 
+            acceptAllDevices: true,
+            optionalServices: [
+                '00001800-0000-1000-8000-00805f9b34fb', // Your UUID
+                'ffe0', 'ffe1' // Common custom service UUIDs
+            ]
+        });
+        
+        const server = await bluetoothDevice.gatt.connect();
+        addLog('Connected to GATT server, attempting direct characteristic access...');
+        
+        // Try common custom service UUIDs for Arduino/ESP32
+        const serviceUuids = ['ffe0', 'ffe1', '6e400001-b5a3-f393-e0a9-e50e24dcca9e'];
+        
+        for (const serviceUuid of serviceUuids) {
             try {
-                addLog('Requesting Bluetooth device...');
-                // Accept all devices; we will attempt to find a writable characteristic
-                bluetoothDevice = await navigator.bluetooth.requestDevice({ 
-                    acceptAllDevices: true, 
-                    optionalServices: ['00001800-0000-1000-8000-00805f9b34fb'] 
-                });
-                bluetoothDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
-
-                addLog(`Connecting to GATT server (${bluetoothDevice.name || 'Unknown'})...`);
-                const server = await bluetoothDevice.gatt.connect();
-
-                addLog('Discovering services...');
-                const services = await server.getPrimaryServices();
-
-                addLog(`Found ${services.length} service(s), searching for writable characteristic...`);
-                // Try to find any writable characteristic
-                for (const svc of services) {
-                    try {
-                        const chars = await svc.getCharacteristics();
-                        for (const ch of chars) {
-                            if (ch.properties.write || ch.properties.writeWithoutResponse) {
-                                bluetoothCharacteristic = ch;
-                                addLog('Writable characteristic found. BLE link ready.', 'received');
-                                connectedVia = 'ble';
-                                updateConnectionStatus();
-                                return;
-                            }
-                        }
-                    } catch (e) {
-                        // ignore and continue
+                const service = await server.getPrimaryService(serviceUuid);
+                const characteristics = await service.getCharacteristics();
+                
+                for (const char of characteristics) {
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        bluetoothCharacteristic = char;
+                        addLog(`Found writable characteristic in service ${serviceUuid}`);
+                        connectedVia = 'ble';
+                        updateConnectionStatus();
+                        return;
                     }
                 }
-
-                addLog('No writable characteristic found on the device. BLE may not be SPP-compatible.', 'error');
-                // disconnect if nothing usable
-                if (bluetoothDevice.gatt.connected) bluetoothDevice.gatt.disconnect();
-                bluetoothDevice = null;
-                bluetoothCharacteristic = null;
-                connectedVia = null;
-                updateConnectionStatus();
-            } catch (err) {
-                addLog(`Bluetooth connect failed: ${err.message}`, 'error');
-                bluetoothDevice = null;
-                bluetoothCharacteristic = null;
-                connectedVia = null;
-                updateConnectionStatus();
+            } catch (e) {
+                // Continue to next service
             }
         }
+        
+        addLog('No compatible services found. This device may use classic Bluetooth.', 'error');
+        
+    } catch (err) {
+        addLog(`Bluetooth connect failed: ${err.message}`, 'error');
+    }
+}
 
         function onBleDisconnected() {
             addLog('BLE device disconnected', 'error');
