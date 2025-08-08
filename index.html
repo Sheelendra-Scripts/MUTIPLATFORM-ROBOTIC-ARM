@@ -74,7 +74,7 @@
     <div class="container">
         <div class="header">
             <h1>🤖 Robotic Arm Controller</h1>
-            <p>Combined Bluetooth (BLE) + USB Serial interface — single-file, mobile-friendly UI</p>
+            <p>Combined Bluetooth (BLE) + USB Serial interface — HC-05 compatible</p>
         </div>
 
         <div class="connection-panel" role="region" aria-label="connection panel">
@@ -87,7 +87,7 @@
 
             <div class="right">
                 <span id="status" class="status disconnected">Disconnected</span>
-                <div class="note">💡 Note: HC-05 (classic SPP) often won't work with Web Bluetooth — use USB Serial or a phone terminal app if needed.</div>
+                <div class="note">💡 HC-05 BLE support varies. If BLE fails, try USB Serial or mobile Bluetooth terminal app.</div>
             </div>
         </div>
 
@@ -175,14 +175,10 @@
             <!-- Joint 6 - Gripper: restricted to 90..180 -->
             <div class="servo-control">
                 <div class="servo-label">Joint 6 - Gripper (range: 90° — 180°)</div>
-                <!-- NOTE: slider range set to 90..180 per your request -->
                 <input type="range" min="90" max="180" value="90" class="slider" id="servo5" data-index="6">
                 <div class="value-display">
                     <span id="value5" class="current-value">90°</span>
                     <div class="preset-buttons">
-                        <!-- Mapping: Close = 90, Half = 135, Open = 180.
-                             You asked for Half=45 but also requested the slider stay 90..180.
-                             45 is outside that range, so I've used 135 as the midpoint/half. -->
                         <button class="preset-btn" data-servo="5" data-val="90">Close (90°)</button>
                         <button class="preset-btn" data-servo="5" data-val="135">Half (135°)</button>
                         <button class="preset-btn" data-servo="5" data-val="180">Open (180°)</button>
@@ -209,21 +205,21 @@
 
         <div class="log-panel" id="logPanel" aria-live="polite">
             <div class="log-entry">🤖 Robotic Arm Controller Ready</div>
-            <div class="log-entry">📱 For BLE: use devices that support Web Bluetooth (BLE). Classic HC-05 often not compatible with WebBluetooth.</div>
-            <div class="log-entry">🔌 For USB serial: Chrome/Edge required (Web Serial API)</div>
+            <div class="log-entry">📱 HC-05 BLE compatibility varies by firmware version</div>
+            <div class="log-entry">🔌 For reliable connection, use USB serial or mobile Bluetooth app</div>
         </div>
     </div>
 
     <script>
         /******************************************************************
-         * Single-file combined BLE + Web Serial controller
-         * - Commands: s{servoIndex}{position}  (servoIndex: 1..6)
-         * - Speed: ss{speed}
+         * HC-05 Compatible BLE + Web Serial controller
+         * - Enhanced service discovery for HC-05 modules
+         * - Fallback mechanisms for different BLE implementations
          ******************************************************************/
 
         // ===== Global state =====
         let bluetoothDevice = null;
-        let bluetoothCharacteristic = null; // writable char
+        let bluetoothCharacteristic = null;
         let serialPort = null;
         let serialReader = null;
         let connectedVia = null; // "ble" | "serial" | null
@@ -269,99 +265,166 @@
             }
         }
 
-        // Enable/disable all interactive controls (except connect buttons)
+        // Enable/disable all interactive controls
         function setControlsEnabled(enabled) {
-            // sliders, preset buttons, system control buttons, speed
             const sl = document.querySelectorAll('.slider');
             sl.forEach(s => s.disabled = !enabled);
 
             const pbs = document.querySelectorAll('.preset-btn');
             pbs.forEach(b => b.disabled = !enabled);
 
-            const sysBtns = document.querySelectorAll('.system-controls .btn, .system-controls .btn-warning, .system-controls .btn-success, .system-controls .btn-danger');
-            // above selector may not find system-controls inside the tree; simpler:
             document.getElementById('btnSave').disabled = !enabled;
             document.getElementById('btnRun').disabled = !enabled;
             document.getElementById('btnReset').disabled = !enabled;
             document.getElementById('btnPause').disabled = !enabled;
             document.getElementById('btnResume').disabled = !enabled;
 
-            // Keep connect buttons enabled always
             btnConnectBT.disabled = false;
             btnConnectSerial.disabled = false;
-            btnArmConnect.disabled = !connectedVia; // only enable arm connect if link exists
+            btnArmConnect.disabled = !connectedVia;
             btnArmDisconnect.disabled = !isArmConnected;
         }
 
-        // Add this anywhere in your script, before it's called
-function onBleDisconnected(event) {
-    console.log("Bluetooth device disconnected:", event.target.name || "Unknown device");
-    alert("Bluetooth device disconnected. Please reconnect.");
-    // Optionally, you could reset UI states here
-}
+        function onBleDisconnected(event) {
+            addLog(`Bluetooth device disconnected: ${event.target.name || 'Unknown device'}`, 'error');
+            bluetoothDevice = null;
+            bluetoothCharacteristic = null;
+            connectedVia = null;
+            isArmConnected = false;
+            updateConnectionStatus();
+        }
 
+        // ===== Enhanced BLE Connection for HC-05 =====
+        async function connectBluetooth() {
+            if (!('bluetooth' in navigator)) {
+                addLog('Web Bluetooth API not supported in this browser.', 'error');
+                return;
+            }
 
-        // ===== BLE (Web Bluetooth) =====
-async function connectBluetooth() {
-    if (!('bluetooth' in navigator)) {
-        addLog('Web Bluetooth API not supported in this browser.', 'error');
-        return;
-    }
-
-    try {
-        addLog('Requesting Bluetooth device...');
-
-        // FIX: include optionalServices so Chrome allows access to them later
-        bluetoothDevice = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: [
-                'generic_access',       // standard GAP service
-                'generic_attribute',    // standard GATT service
-                '6e400001-b5a3-f393-e0a9-e50e24dcca9e' // Nordic UART Service UUID (common for BLE serial)
-                // Add more UUIDs here if your arm uses a custom service
-            ]
-        });
-
-        bluetoothDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
-
-        addLog(`Connecting to GATT server (${bluetoothDevice.name || 'Unknown'})...`);
-        const server = await bluetoothDevice.gatt.connect();
-
-        addLog('Discovering services...');
-        const services = await server.getPrimaryServices();
-
-        addLog(`Found ${services.length} service(s), searching for writable characteristic...`);
-        for (const svc of services) {
             try {
-                const chars = await svc.getCharacteristics();
-                for (const ch of chars) {
-                    if (ch.properties.write || ch.properties.writeWithoutResponse) {
-                        bluetoothCharacteristic = ch;
-                        addLog('Writable characteristic found. BLE link ready.', 'received');
-                        connectedVia = 'ble';
-                        updateConnectionStatus();
-                        return;
-                    }
+                addLog('Requesting Bluetooth device...');
+
+                // Enhanced service list for HC-05 and other BLE modules
+                const serviceUUIDs = [
+                    '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART Service
+                    '0000ffe0-0000-1000-8000-00805f9b34fb', // Common HC-05/HC-06 service
+                    '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Microchip transparent UART
+                    '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Another Nordic UART variant
+                    '0000180f-0000-1000-8000-00805f9b34fb', // Battery service (sometimes present)
+                    'generic_access',
+                    'generic_attribute'
+                ];
+
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: serviceUUIDs
+                });
+
+                bluetoothDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
+
+                addLog(`Connecting to GATT server (${bluetoothDevice.name || 'Unknown'})...`);
+                const server = await bluetoothDevice.gatt.connect();
+
+                addLog('Discovering services...');
+                let services;
+                try {
+                    services = await server.getPrimaryServices();
+                } catch (err) {
+                    addLog('Failed to get primary services, trying individual service discovery...', 'error');
+                    // Try to connect to known services individually
+                    services = await tryIndividualServices(server, serviceUUIDs);
                 }
-            } catch (e) {
-                // ignore and continue
+
+                if (!services || services.length === 0) {
+                    throw new Error('No services found. HC-05 may not support BLE properly.');
+                }
+
+                addLog(`Found ${services.length} service(s), searching for writable characteristic...`);
+
+                // Try to find writable characteristics with multiple approaches
+                const characteristic = await findWritableCharacteristic(services);
+                
+                if (characteristic) {
+                    bluetoothCharacteristic = characteristic;
+                    addLog('✅ Writable characteristic found! BLE link ready.', 'received');
+                    connectedVia = 'ble';
+                    updateConnectionStatus();
+                    return;
+                }
+
+                throw new Error('No writable characteristic found. This HC-05 may not support BLE data transfer.');
+
+            } catch (err) {
+                addLog(`Bluetooth connect failed: ${err.message}`, 'error');
+                if (err.message.includes('No Services found')) {
+                    addLog('💡 This HC-05 appears to be classic Bluetooth only. Try USB Serial or mobile app.', 'error');
+                }
+                bluetoothDevice = null;
+                bluetoothCharacteristic = null;
+                connectedVia = null;
+                updateConnectionStatus();
             }
         }
 
-        addLog('No writable characteristic found on the device. BLE may not be SPP-compatible.', 'error');
-        if (bluetoothDevice.gatt.connected) bluetoothDevice.gatt.disconnect();
-        bluetoothDevice = null;
-        bluetoothCharacteristic = null;
-        connectedVia = null;
-        updateConnectionStatus();
-    } catch (err) {
-        addLog(`Bluetooth connect failed: ${err.message}`, 'error');
-        bluetoothDevice = null;
-        bluetoothCharacteristic = null;
-        connectedVia = null;
-        updateConnectionStatus();
-    }
-}
+        // Try to discover services individually (fallback method)
+        async function tryIndividualServices(server, serviceUUIDs) {
+            const foundServices = [];
+            
+            for (const uuid of serviceUUIDs) {
+                try {
+                    const service = await server.getPrimaryService(uuid);
+                    foundServices.push(service);
+                    addLog(`Found service: ${uuid}`);
+                } catch (e) {
+                    // Service not found, continue
+                }
+            }
+            
+            return foundServices;
+        }
+
+        // Enhanced characteristic discovery
+        async function findWritableCharacteristic(services) {
+            // Known characteristic UUIDs for UART services
+            const knownUUIDs = [
+                '6e400002-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART TX
+                '0000ffe1-0000-1000-8000-00805f9b34fb', // Common HC-05 characteristic
+                '49535343-1e4d-4bd9-ba61-23c647249616', // Microchip data
+                '6e400003-b5a3-f393-e0a9-e50e24dcca9e'  // Nordic UART RX (sometimes writable)
+            ];
+
+            // First, try known UUIDs
+            for (const service of services) {
+                for (const uuid of knownUUIDs) {
+                    try {
+                        const char = await service.getCharacteristic(uuid);
+                        if (char.properties.write || char.properties.writeWithoutResponse) {
+                            addLog(`Found known writable characteristic: ${uuid}`);
+                            return char;
+                        }
+                    } catch (e) {
+                        // Characteristic not found, continue
+                    }
+                }
+            }
+
+            // Fallback: scan all characteristics
+            for (const service of services) {
+                try {
+                    const characteristics = await service.getCharacteristics();
+                    for (const char of characteristics) {
+                        if (char.properties.write || char.properties.writeWithoutResponse) {
+                            addLog(`Found writable characteristic: ${char.uuid}`);
+                            return char;
+                        }
+                    }
+                } catch (e) {
+                    addLog(`Error scanning service ${service.uuid}: ${e.message}`);
+                }
+            }
+
+            return null;
+        }
 
         // ===== Web Serial (USB) =====
         async function connectSerial() {
@@ -404,7 +467,6 @@ async function connectBluetooth() {
                             buffer = buffer.slice(idx + 1);
                             if (line) {
                                 addLog(`Received: ${line}`, 'received');
-                                // handle "Connected" messages from microcontroller
                                 if (line.includes('Connected')) {
                                     isArmConnected = true;
                                 } else if (line.includes('Disconnected')) {
@@ -442,8 +504,7 @@ async function connectBluetooth() {
             }
         }
 
-        // ===== Shared send command logic =====
-        // Always append newline. We try BLE first, then Serial.
+        // ===== Send command logic =====
         async function sendCommand(command) {
             const payload = command + '\n';
             const encoder = new TextEncoder();
@@ -455,8 +516,17 @@ async function connectBluetooth() {
 
             try {
                 if (connectedVia === 'ble' && bluetoothCharacteristic) {
-                    // BLE characteristic write expects ArrayBuffer
-                    await bluetoothCharacteristic.writeValue(encoder.encode(payload));
+                    // Try different write methods for HC-05 compatibility
+                    try {
+                        await bluetoothCharacteristic.writeValue(encoder.encode(payload));
+                    } catch (writeError) {
+                        // Try writeValueWithoutResponse if regular write fails
+                        if (bluetoothCharacteristic.properties.writeWithoutResponse) {
+                            await bluetoothCharacteristic.writeValueWithoutResponse(encoder.encode(payload));
+                        } else {
+                            throw writeError;
+                        }
+                    }
                     addLog(`Sent via BLE: ${command}`, 'sent');
                 } else if (connectedVia === 'serial' && serialPort && serialPort.writable) {
                     const writer = serialPort.writable.getWriter();
@@ -468,11 +538,14 @@ async function connectBluetooth() {
                 }
             } catch (err) {
                 addLog(`Failed to send "${command}": ${err.message}`, 'error');
+                // If BLE write fails, suggest alternatives
+                if (connectedVia === 'ble') {
+                    addLog('💡 BLE write failed. HC-05 may have limited BLE support. Try USB Serial.', 'error');
+                }
             }
         }
 
-        // ===== Arm connect / disconnect (application-level) =====
-        // These send a handshake command to microcontroller that should reply with "Connected"
+        // ===== Arm connect / disconnect =====
         async function armConnect() {
             if (!connectedVia) {
                 addLog('No link to arm. Connect Bluetooth or Serial first.', 'error');
@@ -480,8 +553,6 @@ async function connectBluetooth() {
             }
             addLog('Attempting to connect to arm (sending CONNECT)...', 'info');
             await sendCommand('CONNECT');
-            // Wait for microcontroller to respond with "Connected" (handled by readers)
-            // We set isArmConnected=true optimistically after sending (can be overridden by incoming messages)
             isArmConnected = true;
             updateConnectionStatus();
         }
@@ -497,10 +568,8 @@ async function connectBluetooth() {
             updateConnectionStatus();
         }
 
-        // ===== UI interactions: sliders, presets, speed, system buttons =====
-        // Helper to compute command: servoIndex 1..6
+        // ===== UI interactions =====
         function makeServoCommand(servoIndex, position) {
-            // Clamp position to 0..180 for safety; but gripper slider already limited
             const pos = Math.max(0, Math.min(180, Math.round(Number(position))));
             return `s${servoIndex}${pos}`;
         }
@@ -508,11 +577,10 @@ async function connectBluetooth() {
         // Hook sliders
         document.querySelectorAll('.slider').forEach(slider => {
             slider.addEventListener('input', (e) => {
-                const idx = Number(slider.dataset.index); // 1..6
+                const idx = Number(slider.dataset.index);
                 const pos = slider.value;
                 const display = document.getElementById(`value${idx-1}`);
                 if (display) display.textContent = `${pos}°`;
-                // Send servo update if arm is connected
                 if (isArmConnected) {
                     const cmd = makeServoCommand(idx, pos);
                     sendCommand(cmd);
@@ -523,16 +591,15 @@ async function connectBluetooth() {
         // Hook preset buttons
         document.querySelectorAll('.preset-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                const servoIdxZero = Number(btn.dataset.servo); // 0..5 (element index)
+                const servoIdxZero = Number(btn.dataset.servo);
                 const val = Number(btn.dataset.val);
                 const slider = document.getElementById(`servo${servoIdxZero}`);
                 if (slider) {
                     slider.value = val;
-                    const idx = Number(slider.dataset.index); // 1..6
+                    const idx = Number(slider.dataset.index);
                     const display = document.getElementById(`value${idx-1}`);
                     if (display) display.textContent = `${val}°`;
                 }
-                // send if connected
                 if (isArmConnected) {
                     const idx = servoIdxZero + 1;
                     sendCommand(makeServoCommand(idx, val));
@@ -552,59 +619,3 @@ async function connectBluetooth() {
         // System control buttons
         document.getElementById('btnSave').addEventListener('click', () => { if (isArmConnected) sendCommand('SAVE'); });
         document.getElementById('btnRun').addEventListener('click', () => { if (isArmConnected) sendCommand('RUN'); });
-        document.getElementById('btnReset').addEventListener('click', () => { if (isArmConnected) sendCommand('RESET'); });
-        document.getElementById('btnPause').addEventListener('click', () => { if (isArmConnected) sendCommand('PAUSE'); });
-        document.getElementById('btnResume').addEventListener('click', () => { if (isArmConnected) sendCommand('RESUME'); });
-
-        // Keyboard shortcuts (Ctrl+S Save, Ctrl+R Run, Ctrl+H Reset)
-        document.addEventListener('keydown', (ev) => {
-            if (!ev.ctrlKey) return;
-            if (ev.key === 's') { ev.preventDefault(); if (isArmConnected) sendCommand('SAVE'); }
-            if (ev.key === 'r') { ev.preventDefault(); if (isArmConnected) sendCommand('RUN'); }
-            if (ev.key === 'h') { ev.preventDefault(); if (isArmConnected) sendCommand('RESET'); }
-        });
-
-        // ===== Connect / disconnect UI actions =====
-        btnConnectBT.addEventListener('click', async () => {
-            await connectBluetooth();
-            updateConnectionStatus();
-        });
-
-        btnConnectSerial.addEventListener('click', async () => {
-            await connectSerial();
-            updateConnectionStatus();
-        });
-
-        btnArmConnect.addEventListener('click', async () => {
-            await armConnect();
-        });
-
-        btnArmDisconnect.addEventListener('click', async () => {
-            await armDisconnect();
-        });
-
-        // When user closes page, tidy resources
-        window.addEventListener('beforeunload', async () => {
-            try {
-                if (bluetoothDevice && bluetoothDevice.gatt && bluetoothDevice.gatt.connected) bluetoothDevice.gatt.disconnect();
-            } catch (e) {}
-            try { if (serialReader) await serialReader.cancel(); } catch (e){}
-            try { if (serialPort) await serialPort.close(); } catch (e){}
-        });
-
-        // Initialize UI initial positions
-        window.addEventListener('load', () => {
-            const init = [0,90,90,90,90,90]; // gripper initial 90 per requested range
-            for (let i=0;i<6;i++){
-                const slider = document.getElementById(`servo${i}`);
-                const display = document.getElementById(`value${i}`);
-                if (slider) slider.value = init[i];
-                if (display) display.textContent = `${init[i]}°`;
-            }
-            speedValue.textContent = speedSlider.value;
-            setControlsEnabled(false);
-            addLog('Interface initialized', 'info');
-        });
-    </script>
-</body>
-</html>
