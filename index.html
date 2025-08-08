@@ -293,6 +293,14 @@
             btnArmDisconnect.disabled = !isArmConnected;
         }
 
+        // Add this anywhere in your script, before it's called
+function onBleDisconnected(event) {
+    console.log("Bluetooth device disconnected:", event.target.name || "Unknown device");
+    alert("Bluetooth device disconnected. Please reconnect.");
+    // Optionally, you could reset UI states here
+}
+
+
         // ===== BLE (Web Bluetooth) =====
 async function connectBluetooth() {
     if (!('bluetooth' in navigator)) {
