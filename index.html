@@ -1,274 +1,72 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Robotic Arm Controller</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* --- Basic reset and layout --- */
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+            min-height:100vh;padding:18px;color:#333;
         }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            color: #333;
+        .container{
+            max-width:1200px;margin:0 auto;background:rgba(255,255,255,0.96);
+            border-radius:18px;padding:26px;box-shadow:0 20px 40px rgba(0,0,0,0.12);
+            backdrop-filter: blur(6px);
         }
+        .header{text-align:center;margin-bottom:18px}
+        .header h1{color:#2c3e50;font-size:2rem;margin-bottom:8px}
+        .header p{color:#586573;font-size:0.95rem}
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
+        /* --- Connection panel --- */
+        .connection-panel{
+            background:#34495e;color:white;padding:16px;border-radius:12px;margin-bottom:18px;
+            display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between;
         }
-
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
+        .left, .right { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .btn{
+            background:linear-gradient(45deg,#3498db,#2980b9);color:white;border:none;padding:10px 16px;border-radius:20px;
+            cursor:pointer;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.12);
         }
+        .btn:disabled{opacity:0.5;cursor:not-allowed}
+        .btn-success{background:linear-gradient(45deg,#27ae60,#219a52)}
+        .btn-danger{background:linear-gradient(45deg,#e74c3c,#c0392b)}
+        .btn-warning{background:linear-gradient(45deg,#f39c12,#e67e22)}
+        .status{display:inline-block;padding:8px 14px;border-radius:20px;font-weight:700}
+        .status.disconnected{background:#e74c3c;color:white}
+        .status.connected{background:#27ae60;color:white}
 
-        .header h1 {
-            color: #2c3e50;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-        }
+        /* --- Controls grid --- */
+        .controls-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin:18px 0}
+        .servo-control{background:white;border-radius:12px;padding:18px;border:2px solid #ecf0f1;box-shadow:0 8px 20px rgba(0,0,0,0.06)}
+        .servo-label{font-weight:700;color:#2c3e50;margin-bottom:10px;text-align:center}
+        .slider{width:100%;height:8px;border-radius:6px;background:#ecf0f1;appearance:none;outline:none}
+        .slider::-webkit-slider-thumb{appearance:none;width:20px;height:20px;border-radius:50%;background:linear-gradient(45deg,#3498db,#2980b9);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.18)}
+        .value-display{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+        .current-value{background:#3498db;color:white;padding:6px 12px;border-radius:14px;font-weight:700;min-width:54px;text-align:center}
+        .preset-buttons{display:flex;gap:8px;flex-wrap:wrap}
+        .preset-btn{background:#95a5a6;color:white;border:none;padding:6px 10px;border-radius:10px;cursor:pointer;font-size:13px}
+        .preset-btn:disabled{opacity:0.5;cursor:not-allowed}
 
-        .connection-panel {
-            background: #34495e;
-            color: white;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            text-align: center;
-        }
+        /* --- Speed & system controls --- */
+        .speed-control{background:white;border-radius:12px;padding:14px;border:2px solid #ecf0f1;text-align:center;margin-bottom:12px}
+        .speed-slider{width:200px;height:8px}
+        .system-controls{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
 
-        .btn {
-            background: linear-gradient(45deg, #3498db, #2980b9);
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 16px;
-            margin: 5px;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        }
+        /* --- Logs --- */
+        .log-panel{background:#2c3e50;color:#ecf0f1;border-radius:10px;padding:12px;height:160px;overflow-y:auto;font-family:monospace;font-size:13px}
+        .log-entry{margin-bottom:6px}
+        .log-sent{color:#82c0ff}
+        .log-received{color:#9be6a7}
+        .log-error{color:#ffb3b3}
+        .note{font-size:12px;color:#7f8c8d;margin-top:8px;text-align:center}
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn-success { background: linear-gradient(45deg, #27ae60, #219a52); }
-        .btn-danger { background: linear-gradient(45deg, #e74c3c, #c0392b); }
-        .btn-warning { background: linear-gradient(45deg, #f39c12, #e67e22); }
-
-        .status {
-            display: inline-block;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-weight: bold;
-            margin-left: 15px;
-        }
-
-        .status.disconnected {
-            background: #e74c3c;
-            color: white;
-        }
-
-        .status.connected {
-            background: #27ae60;
-            color: white;
-        }
-
-        .controls-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 25px;
-            margin-bottom: 30px;
-        }
-
-        .servo-control {
-            background: white;
-            border: 2px solid #ecf0f1;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
-        }
-
-        .servo-control:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-            border-color: #3498db;
-        }
-
-        .servo-label {
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-
-        .slider-container {
-            position: relative;
-            margin-bottom: 15px;
-        }
-
-        .slider {
-            width: 100%;
-            height: 8px;
-            border-radius: 5px;
-            background: #ecf0f1;
-            outline: none;
-            transition: background 0.3s;
-            -webkit-appearance: none;
-        }
-
-        .slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: linear-gradient(45deg, #3498db, #2980b9);
-            cursor: pointer;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-        }
-
-        .slider::-webkit-slider-thumb:hover {
-            transform: scale(1.1);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        }
-
-        .slider::-moz-range-thumb {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: linear-gradient(45deg, #3498db, #2980b9);
-            cursor: pointer;
-            border: none;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        }
-
-        .value-display {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 10px;
-        }
-
-        .current-value {
-            background: #3498db;
-            color: white;
-            padding: 5px 12px;
-            border-radius: 15px;
-            font-weight: bold;
-            min-width: 50px;
-            text-align: center;
-        }
-
-        .preset-buttons {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .preset-btn {
-            background: #95a5a6;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.3s ease;
-        }
-
-        .preset-btn:hover {
-            background: #7f8c8d;
-            transform: scale(1.05);
-        }
-
-        .system-controls {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-
-        .speed-control {
-            background: white;
-            border: 2px solid #ecf0f1;
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .speed-slider {
-            width: 200px;
-            margin: 10px 0;
-        }
-
-        .log-panel {
-            background: #2c3e50;
-            color: #ecf0f1;
-            border-radius: 10px;
-            padding: 15px;
-            height: 150px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-        }
-
-        .log-entry {
-            margin-bottom: 5px;
-            padding: 2px 0;
-        }
-
-        .log-sent { color: #3498db; }
-        .log-received { color: #27ae60; }
-        .log-error { color: #e74c3c; }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 20px;
-            }
-            
-            .controls-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .system-controls {
-                flex-direction: column;
-            }
-        }
-
-        .pulse {
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+        @media (max-width:700px){
+            .connection-panel{flex-direction:column;align-items:stretch;gap:8px}
+            .left,.right{justify-content:center}
         }
     </style>
 </head>
@@ -276,535 +74,529 @@
     <div class="container">
         <div class="header">
             <h1>🤖 Robotic Arm Controller</h1>
-            <p>Precise Bluetooth Control Interface</p>
+            <p>Combined Bluetooth (BLE) + USB Serial interface — single-file, mobile-friendly UI</p>
         </div>
 
-        <div class="connection-panel">
-            <button class="btn" onclick="connectBluetooth()">📱 Connect HC-05 Bluetooth</button>
-            <button class="btn" onclick="connectSerial()">🔌 Connect USB Serial</button>
-            <button class="btn btn-success" onclick="sendCommand('Connect')">✅ Connect Arm</button>
-            <button class="btn btn-danger" onclick="sendCommand('Disconnect')">❌ Disconnect Arm</button>
-            <span class="status disconnected" id="status">Disconnected</span>
-            <div style="margin-top: 10px; font-size: 12px; color: #7f8c8d;">
-                💡 HC-05 Instructions: Pair with Windows Bluetooth first, then connect here
+        <div class="connection-panel" role="region" aria-label="connection panel">
+            <div class="left">
+                <button class="btn" id="btnConnectBT">📱 Connect Bluetooth</button>
+                <button class="btn" id="btnConnectSerial">🔌 Connect USB Serial</button>
+                <button class="btn btn-success" id="btnArmConnect">✅ Connect Arm</button>
+                <button class="btn btn-danger" id="btnArmDisconnect">❌ Disconnect Arm</button>
+            </div>
+
+            <div class="right">
+                <span id="status" class="status disconnected">Disconnected</span>
+                <div class="note">💡 Note: HC-05 (classic SPP) often won't work with Web Bluetooth — use USB Serial or a phone terminal app if needed.</div>
             </div>
         </div>
 
-        <div class="controls-grid">
+        <div class="controls-grid" id="controlsGrid">
+            <!-- Joint 1 -->
             <div class="servo-control">
                 <div class="servo-label">Joint 1 - Base Rotation</div>
-                <div class="slider-container">
-                    <input type="range" min="0" max="180" value="0" class="slider" id="servo0" oninput="updateServo(0, this.value)">
-                </div>
+                <input type="range" min="0" max="180" value="0" class="slider" id="servo0" data-index="1">
                 <div class="value-display">
-                    <span class="current-value" id="value0">0°</span>
+                    <span id="value0" class="current-value">0°</span>
                     <div class="preset-buttons">
-                        <button class="preset-btn" onclick="setServoValue(0, 0)">0°</button>
-                        <button class="preset-btn" onclick="setServoValue(0, 45)">45°</button>
-                        <button class="preset-btn" onclick="setServoValue(0, 90)">90°</button>
-                        <button class="preset-btn" onclick="setServoValue(0, 135)">135°</button>
-                        <button class="preset-btn" onclick="setServoValue(0, 180)">180°</button>
+                        <button class="preset-btn" data-servo="0" data-val="0">0°</button>
+                        <button class="preset-btn" data-servo="0" data-val="45">45°</button>
+                        <button class="preset-btn" data-servo="0" data-val="90">90°</button>
+                        <button class="preset-btn" data-servo="0" data-val="135">135°</button>
+                        <button class="preset-btn" data-servo="0" data-val="180">180°</button>
                     </div>
                 </div>
             </div>
 
+            <!-- Joint 2 -->
             <div class="servo-control">
                 <div class="servo-label">Joint 2 - Shoulder</div>
-                <div class="slider-container">
-                    <input type="range" min="0" max="180" value="90" class="slider" id="servo1" oninput="updateServo(1, this.value)">
-                </div>
+                <input type="range" min="0" max="180" value="90" class="slider" id="servo1" data-index="2">
                 <div class="value-display">
-                    <span class="current-value" id="value1">90°</span>
+                    <span id="value1" class="current-value">90°</span>
                     <div class="preset-buttons">
-                        <button class="preset-btn" onclick="setServoValue(1, 0)">0°</button>
-                        <button class="preset-btn" onclick="setServoValue(1, 45)">45°</button>
-                        <button class="preset-btn" onclick="setServoValue(1, 90)">90°</button>
-                        <button class="preset-btn" onclick="setServoValue(1, 135)">135°</button>
-                        <button class="preset-btn" onclick="setServoValue(1, 180)">180°</button>
+                        <button class="preset-btn" data-servo="1" data-val="0">0°</button>
+                        <button class="preset-btn" data-servo="1" data-val="45">45°</button>
+                        <button class="preset-btn" data-servo="1" data-val="90">90°</button>
+                        <button class="preset-btn" data-servo="1" data-val="135">135°</button>
+                        <button class="preset-btn" data-servo="1" data-val="180">180°</button>
                     </div>
                 </div>
             </div>
 
+            <!-- Joint 3 -->
             <div class="servo-control">
                 <div class="servo-label">Joint 3 - Elbow</div>
-                <div class="slider-container">
-                    <input type="range" min="0" max="180" value="90" class="slider" id="servo2" oninput="updateServo(2, this.value)">
-                </div>
+                <input type="range" min="0" max="180" value="90" class="slider" id="servo2" data-index="3">
                 <div class="value-display">
-                    <span class="current-value" id="value2">90°</span>
+                    <span id="value2" class="current-value">90°</span>
                     <div class="preset-buttons">
-                        <button class="preset-btn" onclick="setServoValue(2, 0)">0°</button>
-                        <button class="preset-btn" onclick="setServoValue(2, 45)">45°</button>
-                        <button class="preset-btn" onclick="setServoValue(2, 90)">90°</button>
-                        <button class="preset-btn" onclick="setServoValue(2, 135)">135°</button>
-                        <button class="preset-btn" onclick="setServoValue(2, 180)">180°</button>
+                        <button class="preset-btn" data-servo="2" data-val="0">0°</button>
+                        <button class="preset-btn" data-servo="2" data-val="45">45°</button>
+                        <button class="preset-btn" data-servo="2" data-val="90">90°</button>
+                        <button class="preset-btn" data-servo="2" data-val="135">135°</button>
+                        <button class="preset-btn" data-servo="2" data-val="180">180°</button>
                     </div>
                 </div>
             </div>
 
+            <!-- Joint 4 -->
             <div class="servo-control">
                 <div class="servo-label">Joint 4 - Wrist Pitch</div>
-                <div class="slider-container">
-                    <input type="range" min="0" max="180" value="90" class="slider" id="servo3" oninput="updateServo(3, this.value)">
-                </div>
+                <input type="range" min="0" max="180" value="90" class="slider" id="servo3" data-index="4">
                 <div class="value-display">
-                    <span class="current-value" id="value3">90°</span>
+                    <span id="value3" class="current-value">90°</span>
                     <div class="preset-buttons">
-                        <button class="preset-btn" onclick="setServoValue(3, 0)">0°</button>
-                        <button class="preset-btn" onclick="setServoValue(3, 45)">45°</button>
-                        <button class="preset-btn" onclick="setServoValue(3, 90)">90°</button>
-                        <button class="preset-btn" onclick="setServoValue(3, 135)">135°</button>
-                        <button class="preset-btn" onclick="setServoValue(3, 180)">180°</button>
+                        <button class="preset-btn" data-servo="3" data-val="0">0°</button>
+                        <button class="preset-btn" data-servo="3" data-val="45">45°</button>
+                        <button class="preset-btn" data-servo="3" data-val="90">90°</button>
+                        <button class="preset-btn" data-servo="3" data-val="135">135°</button>
+                        <button class="preset-btn" data-servo="3" data-val="180">180°</button>
                     </div>
                 </div>
             </div>
 
+            <!-- Joint 5 -->
             <div class="servo-control">
                 <div class="servo-label">Joint 5 - Wrist Roll</div>
-                <div class="slider-container">
-                    <input type="range" min="0" max="180" value="90" class="slider" id="servo4" oninput="updateServo(4, this.value)">
-                </div>
+                <input type="range" min="0" max="180" value="90" class="slider" id="servo4" data-index="5">
                 <div class="value-display">
-                    <span class="current-value" id="value4">90°</span>
+                    <span id="value4" class="current-value">90°</span>
                     <div class="preset-buttons">
-                        <button class="preset-btn" onclick="setServoValue(4, 0)">0°</button>
-                        <button class="preset-btn" onclick="setServoValue(4, 45)">45°</button>
-                        <button class="preset-btn" onclick="setServoValue(4, 90)">90°</button>
-                        <button class="preset-btn" onclick="setServoValue(4, 135)">135°</button>
-                        <button class="preset-btn" onclick="setServoValue(4, 180)">180°</button>
+                        <button class="preset-btn" data-servo="4" data-val="0">0°</button>
+                        <button class="preset-btn" data-servo="4" data-val="45">45°</button>
+                        <button class="preset-btn" data-servo="4" data-val="90">90°</button>
+                        <button class="preset-btn" data-servo="4" data-val="135">135°</button>
+                        <button class="preset-btn" data-servo="4" data-val="180">180°</button>
                     </div>
                 </div>
             </div>
 
+            <!-- Joint 6 - Gripper: restricted to 90..180 -->
             <div class="servo-control">
-                <div class="servo-label">Joint 6 - Gripper</div>
-                <div class="slider-container">
-                    <input type="range" min="0" max="180" value="0" class="slider" id="servo5" oninput="updateServo(5, this.value)">
-                </div>
+                <div class="servo-label">Joint 6 - Gripper (range: 90° — 180°)</div>
+                <!-- NOTE: slider range set to 90..180 per your request -->
+                <input type="range" min="90" max="180" value="90" class="slider" id="servo5" data-index="6">
                 <div class="value-display">
-                    <span class="current-value" id="value5">0°</span>
+                    <span id="value5" class="current-value">90°</span>
                     <div class="preset-buttons">
-                        <button class="preset-btn" onclick="setServoValue(5, 0)">Open</button>
-                        <button class="preset-btn" onclick="setServoValue(5, 90)">Half</button>
-                        <button class="preset-btn" onclick="setServoValue(5, 180)">Close</button>
+                        <!-- Mapping: Close = 90, Half = 135, Open = 180.
+                             You asked for Half=45 but also requested the slider stay 90..180.
+                             45 is outside that range, so I've used 135 as the midpoint/half. -->
+                        <button class="preset-btn" data-servo="5" data-val="90">Close (90°)</button>
+                        <button class="preset-btn" data-servo="5" data-val="135">Half (135°)</button>
+                        <button class="preset-btn" data-servo="5" data-val="180">Open (180°)</button>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="speed-control">
-            <h3>Movement Speed</h3>
-            <input type="range" min="1" max="100" value="50" class="slider speed-slider" id="speedSlider" oninput="updateSpeed(this.value)">
-            <div style="margin-top: 10px;">
-                <span class="current-value" id="speedValue">50</span>
+            <h3 style="margin-bottom:8px">Movement Speed</h3>
+            <input type="range" min="1" max="100" value="50" class="slider speed-slider" id="speedSlider">
+            <div style="margin-top:10px">
+                <span id="speedValue" class="current-value">50</span>
             </div>
         </div>
 
         <div class="system-controls">
-            <button class="btn btn-warning" onclick="sendCommand('SAVE')">💾 Save Position</button>
-            <button class="btn btn-success" onclick="sendCommand('RUN')">▶️ Run Saved</button>
-            <button class="btn" onclick="sendCommand('RESET')">🔄 Reset to Home</button>
-            <button class="btn btn-warning" onclick="sendCommand('PAUSE')">⏸️ Pause</button>
-            <button class="btn btn-success" onclick="sendCommand('RESUME')">⏯️ Resume</button>
+            <button class="btn btn-warning" id="btnSave">💾 Save Position</button>
+            <button class="btn btn-success" id="btnRun">▶️ Run Saved</button>
+            <button class="btn" id="btnReset">🔄 Reset to Home</button>
+            <button class="btn btn-warning" id="btnPause">⏸️ Pause</button>
+            <button class="btn btn-success" id="btnResume">⏯️ Resume</button>
         </div>
 
-        <div class="log-panel" id="logPanel">
-            <div class="log-entry">🤖 Robotic Arm Controller Ready - HC-05 Compatible</div>
-            <div class="log-entry">📱 For HC-05: Pair with Windows Bluetooth first, then click 'Connect HC-05 Bluetooth'</div>
-            <div class="log-entry">🔌 For direct connection: Click 'Connect USB Serial'</div>
+        <div class="log-panel" id="logPanel" aria-live="polite">
+            <div class="log-entry">🤖 Robotic Arm Controller Ready</div>
+            <div class="log-entry">📱 For BLE: use devices that support Web Bluetooth (BLE). Classic HC-05 often not compatible with WebBluetooth.</div>
+            <div class="log-entry">🔌 For USB serial: Chrome/Edge required (Web Serial API)</div>
         </div>
     </div>
 
     <script>
-        // Global variables
-        let bluetoothDevice = null;
-        let bluetoothSocket = null;
-        let isConnected = false;
-        let serialPort = null;
+        /******************************************************************
+         * Single-file combined BLE + Web Serial controller
+         * - Commands: s{servoIndex}{position}  (servoIndex: 1..6)
+         * - Speed: ss{speed}
+         ******************************************************************/
 
-        // Logging function
-        function addLog(message, type = 'info') {
-            const logPanel = document.getElementById('logPanel');
-            const logEntry = document.createElement('div');
-            logEntry.className = `log-entry log-${type}`;
-            logEntry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
-            logPanel.appendChild(logEntry);
+        // ===== Global state =====
+        let bluetoothDevice = null;
+        let bluetoothCharacteristic = null; // writable char
+        let serialPort = null;
+        let serialReader = null;
+        let connectedVia = null; // "ble" | "serial" | null
+        let isArmConnected = false;
+
+        // DOM
+        const logPanel = document.getElementById('logPanel');
+        const statusEl = document.getElementById('status');
+        const btnConnectBT = document.getElementById('btnConnectBT');
+        const btnConnectSerial = document.getElementById('btnConnectSerial');
+        const btnArmConnect = document.getElementById('btnArmConnect');
+        const btnArmDisconnect = document.getElementById('btnArmDisconnect');
+        const controlsGrid = document.getElementById('controlsGrid');
+
+        // Utility: add log
+        function addLog(message, type='info') {
+            const e = document.createElement('div');
+            e.className = 'log-entry';
+            if (type === 'sent') e.classList.add('log-sent');
+            if (type === 'received') e.classList.add('log-received');
+            if (type === 'error') e.classList.add('log-error');
+
+            const timestamp = new Date().toLocaleTimeString();
+            e.textContent = `${timestamp} — ${message}`;
+            logPanel.appendChild(e);
             logPanel.scrollTop = logPanel.scrollHeight;
         }
 
-        // Check Web Bluetooth availability
-        function isBluetoothAvailable() {
-            return 'bluetooth' in navigator && 'requestDevice' in navigator.bluetooth;
-        }
-
-        // Handle notifications from Arduino
-        function handleNotifications(event) {
-            const value = new TextDecoder().decode(event.target.value);
-            addLog(`📨 Received: ${value}`, 'received');
-            
-            if (value.includes('Connected')) {
-                updateConnectionStatus(true);
-            } else if (value.includes('Disconnected')) {
-                updateConnectionStatus(false);
-            }
-        }
-
-        // Update connection status
-        function updateConnectionStatus(connected) {
-            const statusElement = document.getElementById('status');
-            if (connected) {
-                statusElement.textContent = 'Connected';
-                statusElement.className = 'status connected';
+        // ===== Connection status UI =====
+        function updateConnectionStatus() {
+            if (connectedVia && isArmConnected) {
+                statusEl.textContent = `Connected (${connectedVia.toUpperCase()})`;
+                statusEl.className = 'status connected';
+                setControlsEnabled(true);
+            } else if (connectedVia) {
+                statusEl.textContent = `Link Ready (${connectedVia.toUpperCase()})`;
+                statusEl.className = 'status connected';
+                setControlsEnabled(false);
             } else {
-                statusElement.textContent = 'Disconnected';
-                statusElement.className = 'status disconnected';
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'status disconnected';
+                setControlsEnabled(false);
             }
         }
 
-        // Alternative HC-05 connection using different approach
-        async function connectBluetooth() {
-            addLog('⚠️ HC-05 Web Bluetooth has limitations in browsers', 'info');
-            addLog('🔄 Trying alternative connection method...', 'info');
-            
-            try {
-                // Try basic device request without specific services
-                bluetoothDevice = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true
-                });
+        // Enable/disable all interactive controls (except connect buttons)
+        function setControlsEnabled(enabled) {
+            // sliders, preset buttons, system control buttons, speed
+            const sl = document.querySelectorAll('.slider');
+            sl.forEach(s => s.disabled = !enabled);
 
-                addLog(`📱 Found: ${bluetoothDevice.name || 'Unknown Device'}`, 'info');
-                
+            const pbs = document.querySelectorAll('.preset-btn');
+            pbs.forEach(b => b.disabled = !enabled);
+
+            const sysBtns = document.querySelectorAll('.system-controls .btn, .system-controls .btn-warning, .system-controls .btn-success, .system-controls .btn-danger');
+            // above selector may not find system-controls inside the tree; simpler:
+            document.getElementById('btnSave').disabled = !enabled;
+            document.getElementById('btnRun').disabled = !enabled;
+            document.getElementById('btnReset').disabled = !enabled;
+            document.getElementById('btnPause').disabled = !enabled;
+            document.getElementById('btnResume').disabled = !enabled;
+
+            // Keep connect buttons enabled always
+            btnConnectBT.disabled = false;
+            btnConnectSerial.disabled = false;
+            btnArmConnect.disabled = !connectedVia; // only enable arm connect if link exists
+            btnArmDisconnect.disabled = !isArmConnected;
+        }
+
+        // ===== BLE (Web Bluetooth) =====
+        async function connectBluetooth() {
+            if (!('bluetooth' in navigator)) {
+                addLog('Web Bluetooth API not supported in this browser.', 'error');
+                return;
+            }
+
+            try {
+                addLog('Requesting Bluetooth device...');
+                // Accept all devices; we will attempt to find a writable characteristic
+                bluetoothDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [] });
+                bluetoothDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
+
+                addLog(`Connecting to GATT server (${bluetoothDevice.name || 'Unknown'})...`);
                 const server = await bluetoothDevice.gatt.connect();
+
+                addLog('Discovering services...');
                 const services = await server.getPrimaryServices();
-                
-                addLog(`🔍 Found ${services.length} services`, 'info');
-                
+
+                addLog(`Found ${services.length} service(s), searching for writable characteristic...`);
                 // Try to find any writable characteristic
-                for (let service of services) {
+                for (const svc of services) {
                     try {
-                        const characteristics = await service.getCharacteristics();
-                        for (let char of characteristics) {
-                            if (char.properties.write || char.properties.writeWithoutResponse) {
-                                window.bluetoothCharacteristic = char;
-                                addLog('✅ Found writable characteristic', 'received');
-                                
-                                isConnected = true;
-                                updateConnectionStatus(true);
-                                addLog('🎉 Bluetooth connected! Try USB Serial if this doesn\'t work.', 'received');
+                        const chars = await svc.getCharacteristics();
+                        for (const ch of chars) {
+                            if (ch.properties.write || ch.properties.writeWithoutResponse) {
+                                bluetoothCharacteristic = ch;
+                                addLog('Writable characteristic found. BLE link ready.', 'received');
+                                connectedVia = 'ble';
+                                updateConnectionStatus();
                                 return;
                             }
                         }
                     } catch (e) {
-                        continue;
+                        // ignore and continue
                     }
                 }
-                
-                throw new Error('No writable characteristic found');
-                
-            } catch (error) {
-                addLog(`❌ Bluetooth failed: ${error.message}`, 'error');
-                addLog('💡 RECOMMENDED: Use USB Serial connection instead', 'info');
-                addLog('📱 Or use "Serial Bluetooth Terminal" app on phone', 'info');
-                showHC05Alternatives();
+
+                addLog('No writable characteristic found on the device. BLE may not be SPP-compatible.', 'error');
+                // disconnect if nothing usable
+                if (bluetoothDevice.gatt.connected) bluetoothDevice.gatt.disconnect();
+                bluetoothDevice = null;
+                bluetoothCharacteristic = null;
+                connectedVia = null;
+                updateConnectionStatus();
+            } catch (err) {
+                addLog(`Bluetooth connect failed: ${err.message}`, 'error');
+                bluetoothDevice = null;
+                bluetoothCharacteristic = null;
+                connectedVia = null;
+                updateConnectionStatus();
             }
         }
 
-        // Show HC-05 specific alternatives
-        function showHC05Alternatives() {
-            const alternatives = `
-                <div style="background: #fff3cd; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #ffc107;">
-                    <h4 style="color: #856404;">🚨 HC-05 Web Bluetooth Issues</h4>
-                    <p style="margin: 10px 0; color: #856404;"><strong>Problem:</strong> HC-05 modules don't fully support Web Bluetooth standard</p>
-                    
-                    <div style="background: white; padding: 10px; border-radius: 5px; margin: 10px 0;">
-                        <strong style="color: #28a745;">✅ BEST SOLUTION: USB Serial</strong>
-                        <p style="margin: 5px 0; font-size: 14px;">Connect Arduino directly via USB cable and use "Connect USB Serial"</p>
-                    </div>
-                    
-                    <div style="background: white; padding: 10px; border-radius: 5px; margin: 10px 0;">
-                        <strong style="color: #007bff;">📱 MOBILE SOLUTION: Bluetooth App</strong>
-                        <p style="margin: 5px 0; font-size: 14px;">Use "Serial Bluetooth Terminal" app on Android/iOS</p>
-                        <p style="margin: 5px 0; font-size: 12px; color: #666;">Commands: s190, s245, s390, etc.</p>
-                    </div>
-                </div>
-            `;
-            
-            const logPanel = document.getElementById('logPanel');
-            const altDiv = document.createElement('div');
-            altDiv.innerHTML = alternatives;
-            logPanel.appendChild(altDiv);
-            logPanel.scrollTop = logPanel.scrollHeight;
+        function onBleDisconnected() {
+            addLog('BLE device disconnected', 'error');
+            bluetoothDevice = null;
+            bluetoothCharacteristic = null;
+            if (connectedVia === 'ble') connectedVia = null;
+            isArmConnected = false;
+            updateConnectionStatus();
         }
 
-        // Handle Bluetooth disconnection
-        function handleDisconnection() {
-            isConnected = false;
-            updateConnectionStatus(false);
-            addLog('📴 Bluetooth device disconnected', 'error');
-            addLog('🔄 Click "Connect Bluetooth" to reconnect', 'info');
-        }
-
-        // Enhanced Web Serial connection with debugging
+        // ===== Web Serial (USB) =====
         async function connectSerial() {
             if (!('serial' in navigator)) {
-                addLog('❌ Web Serial not supported in this browser', 'error');
-                addLog('💡 Please use Chrome or Edge browser', 'info');
+                addLog('Web Serial API not supported in this browser. Use Chrome/Edge.', 'error');
                 return;
             }
 
             try {
-                addLog('🔌 Opening USB serial connection...', 'info');
-                addLog('📋 Select your Arduino/ESP32 COM port', 'info');
-                
+                addLog('Requesting serial port...');
                 serialPort = await navigator.serial.requestPort();
-                await serialPort.open({ 
-                    baudRate: 9600,
-                    dataBits: 8,
-                    stopBits: 1,
-                    parity: 'none',
-                    flowControl: 'none'
-                });
-
-                addLog('✅ Serial port opened successfully', 'received');
-
-                // Send test command to check Arduino response
-                setTimeout(() => {
-                    addLog('🧪 Sending test command to Arduino...', 'info');
-                    sendCommand('STATUS');
-                }, 1000);
-
-                // Set up reader for incoming data
+                await serialPort.open({ baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' });
+                addLog('Serial port opened.', 'received');
+                connectedVia = 'serial';
                 startSerialReader();
-
-                isConnected = true;
-                updateConnectionStatus(true);
-                addLog('✅ USB Serial connection established!', 'received');
-                addLog('🚀 Ready to control robotic arm', 'received');
-
-            } catch (error) {
-                if (error.name === 'NotFoundError') {
-                    addLog('❌ No serial port selected', 'error');
-                } else {
-                    addLog(`❌ Serial connection failed: ${error.message}`, 'error');
-                }
-                addLog('💡 Troubleshooting:', 'info');
-                addLog('  1. Make sure Arduino is connected via USB', 'info');
-                addLog('  2. Check if Arduino IDE is closed', 'info');
-                addLog('  3. Try a different USB port', 'info');
-                console.error('Serial connection error:', error);
+                updateConnectionStatus();
+            } catch (err) {
+                addLog(`Serial connection failed: ${err.message}`, 'error');
+                serialPort = null;
+                connectedVia = null;
+                updateConnectionStatus();
             }
         }
 
-        // Start reading serial data
         async function startSerialReader() {
-            if (!serialPort) return;
-
+            if (!serialPort || !serialPort.readable) return;
             try {
-                const reader = serialPort.readable.getReader();
+                serialReader = serialPort.readable.getReader();
                 let buffer = '';
-
+                const decoder = new TextDecoder();
                 while (true) {
-                    const { value, done } = await reader.read();
+                    const { value, done } = await serialReader.read();
                     if (done) break;
-                    
-                    const textDecoder = new TextDecoder();
-                    const chunk = textDecoder.decode(value);
-                    buffer += chunk;
-
-                    // Process complete lines
-                    let newlineIndex;
-                    while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-                        const line = buffer.slice(0, newlineIndex).trim();
-                        buffer = buffer.slice(newlineIndex + 1);
-                        
-                        if (line) {
-                            addLog(`📨 Received: ${line}`, 'received');
-                            
-                            if (line.includes('Connected')) {
-                                updateConnectionStatus(true);
-                            } else if (line.includes('Disconnected')) {
-                                updateConnectionStatus(false);
+                    if (value) {
+                        const chunk = decoder.decode(value);
+                        buffer += chunk;
+                        let idx;
+                        while ((idx = buffer.indexOf('\n')) !== -1) {
+                            const line = buffer.slice(0, idx).trim();
+                            buffer = buffer.slice(idx + 1);
+                            if (line) {
+                                addLog(`Received: ${line}`, 'received');
+                                // handle "Connected" messages from microcontroller
+                                if (line.includes('Connected')) {
+                                    isArmConnected = true;
+                                } else if (line.includes('Disconnected')) {
+                                    isArmConnected = false;
+                                }
+                                updateConnectionStatus();
                             }
                         }
                     }
                 }
-            } catch (error) {
-                if (error.name !== 'NetworkError') {
-                    addLog(`❌ Serial read error: ${error.message}`, 'error');
+            } catch (err) {
+                if (err.name !== 'AbortError') addLog(`Serial read error: ${err.message}`, 'error');
+            } finally {
+                try { serialReader.releaseLock(); } catch (e){}
+            }
+        }
+
+        async function disconnectSerial() {
+            try {
+                if (serialReader) {
+                    await serialReader.cancel();
+                    serialReader = null;
                 }
+                if (serialPort) {
+                    await serialPort.close();
+                    serialPort = null;
+                }
+                addLog('Serial port closed.', 'info');
+            } catch (err) {
+                addLog(`Error closing serial: ${err.message}`, 'error');
+            } finally {
+                if (connectedVia === 'serial') connectedVia = null;
+                isArmConnected = false;
+                updateConnectionStatus();
             }
         }
 
-        // Show alternative connection methods with HC-05 specific instructions
-        function showAlternativeConnections() {
-            const alternatives = `
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #3498db;">
-                    <h4 style="color: #2c3e50; margin-bottom: 10px;">🔧 HC-05 Connection Guide:</h4>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <strong>Option 1: Fix HC-05 Bluetooth</strong>
-                        <ol style="margin: 5px 0; padding-left: 20px;">
-                            <li>Power on HC-05 (LED should blink rapidly)</li>
-                            <li>Go to Windows Bluetooth settings</li>
-                            <li>Add device → Bluetooth → Select HC-05</li>
-                            <li>Use PIN: <code>1234</code> or <code>0000</code></li>
-                            <li>After pairing, try connecting again</li>
-                        </ol>
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <strong>Option 2: Direct USB Connection</strong>
-                        <button class="btn" onclick="connectSerial()" style="margin: 5px;">🔌 Connect via USB</button>
-                        <p style="margin: 5px 0; font-size: 12px; color: #666;">Connect Arduino directly with USB cable</p>
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <strong>Option 3: Mobile Bluetooth App</strong>
-                        <p style="margin: 5px 0; font-size: 12px; color: #666;">Use "Serial Bluetooth Terminal" app on Android/iOS</p>
-                    </div>
-                    
-                    <div>
-                        <strong>Option 4: Arduino IDE</strong>
-                        <p style="margin: 5px 0; font-size: 12px; color: #666;">Use Arduino IDE Serial Monitor for testing</p>
-                    </div>
-                </div>
-            `;
-            
-            const logPanel = document.getElementById('logPanel');
-            const altDiv = document.createElement('div');
-            altDiv.innerHTML = alternatives;
-            logPanel.appendChild(altDiv);
-            logPanel.scrollTop = logPanel.scrollHeight;
-        }
-
-        // Handle notifications from Arduino
-        function handleNotifications(event) {
-            const value = new TextDecoder().decode(event.target.value);
-            addLog(`Received: ${value}`, 'received');
-            
-            if (value.includes('Connected')) {
-                updateConnectionStatus(true);
-            } else if (value.includes('Disconnected')) {
-                updateConnectionStatus(false);
-            }
-        }
-
-        // Update connection status
-        function updateConnectionStatus(connected) {
-            const statusElement = document.getElementById('status');
-            if (connected) {
-                statusElement.textContent = 'Connected';
-                statusElement.className = 'status connected';
-            } else {
-                statusElement.textContent = 'Disconnected';
-                statusElement.className = 'status disconnected';
-            }
-        }
-
-        // Enhanced send command with multiple connection types
+        // ===== Shared send command logic =====
+        // Always append newline. We try BLE first, then Serial.
         async function sendCommand(command) {
-            if (!isConnected) {
-                addLog('❌ Not connected to device', 'error');
+            const payload = command + '\n';
+            const encoder = new TextEncoder();
+
+            if (!connectedVia) {
+                addLog('No transport available. Connect Bluetooth or USB Serial first.', 'error');
                 return;
             }
 
             try {
-                const encoder = new TextEncoder();
-                const data = encoder.encode(command + '\n');
-
-                // Try Bluetooth first
-                if (window.bluetoothCharacteristic) {
-                    await window.bluetoothCharacteristic.writeValue(data);
-                    addLog(`📤 Sent via Bluetooth: ${command}`, 'sent');
-                }
-                // Try Serial second
-                else if (serialPort && serialPort.writable) {
+                if (connectedVia === 'ble' && bluetoothCharacteristic) {
+                    // BLE characteristic write expects ArrayBuffer
+                    await bluetoothCharacteristic.writeValue(encoder.encode(payload));
+                    addLog(`Sent via BLE: ${command}`, 'sent');
+                } else if (connectedVia === 'serial' && serialPort && serialPort.writable) {
                     const writer = serialPort.writable.getWriter();
-                    await writer.write(data);
+                    await writer.write(encoder.encode(payload));
                     writer.releaseLock();
-                    addLog(`📤 Sent via Serial: ${command}`, 'sent');
+                    addLog(`Sent via Serial: ${command}`, 'sent');
+                } else {
+                    throw new Error('No active writable transport');
                 }
-                else {
-                    throw new Error('No active connection available');
-                }
-
-            } catch (error) {
-                addLog(`❌ Failed to send command: ${error.message}`, 'error');
-                console.error('Send command error:', error);
+            } catch (err) {
+                addLog(`Failed to send "${command}": ${err.message}`, 'error');
             }
         }
 
-        // Update servo position with correct command format
-        function updateServo(servoNum, value) {
-            document.getElementById(`value${servoNum}`).textContent = `${value}°`;
-            // Fixed command format: s + servo_number + position (e.g., s148 for servo 1, position 48)
-            const command = `s${servoNum + 1}${value}`;
-            sendCommand(command);
+        // ===== Arm connect / disconnect (application-level) =====
+        // These send a handshake command to microcontroller that should reply with "Connected"
+        async function armConnect() {
+            if (!connectedVia) {
+                addLog('No link to arm. Connect Bluetooth or Serial first.', 'error');
+                return;
+            }
+            addLog('Attempting to connect to arm (sending CONNECT)...', 'info');
+            await sendCommand('CONNECT');
+            // Wait for microcontroller to respond with "Connected" (handled by readers)
+            // We set isArmConnected=true optimistically after sending (can be overridden by incoming messages)
+            isArmConnected = true;
+            updateConnectionStatus();
         }
 
-        // Set specific servo value
-        function setServoValue(servoNum, value) {
-            const slider = document.getElementById(`servo${servoNum}`);
-            slider.value = value;
-            updateServo(servoNum, value);
+        async function armDisconnect() {
+            if (!connectedVia) {
+                addLog('No link to arm.', 'error');
+                return;
+            }
+            addLog('Sending DISCONNECT to arm...', 'info');
+            await sendCommand('DISCONNECT');
+            isArmConnected = false;
+            updateConnectionStatus();
         }
 
-        // Update movement speed
-        function updateSpeed(speed) {
-            document.getElementById('speedValue').textContent = speed;
-            sendCommand(`ss${speed}`);
+        // ===== UI interactions: sliders, presets, speed, system buttons =====
+        // Helper to compute command: servoIndex 1..6
+        function makeServoCommand(servoIndex, position) {
+            // Clamp position to 0..180 for safety; but gripper slider already limited
+            const pos = Math.max(0, Math.min(180, Math.round(Number(position))));
+            return `s${servoIndex}${pos}`;
         }
 
-        // Update servo position
-        function updateServo(servoNum, value) {
-            document.getElementById(`value${servoNum}`).textContent = `${value}°`;
-            sendCommand(`s${servoNum + 1}${value}`);
-        }
+        // Hook sliders
+        document.querySelectorAll('.slider').forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                const idx = Number(slider.dataset.index); // 1..6
+                const pos = slider.value;
+                const display = document.getElementById(`value${idx-1}`);
+                if (display) display.textContent = `${pos}°`;
+                // Send servo update if arm is connected
+                if (isArmConnected) {
+                    const cmd = makeServoCommand(idx, pos);
+                    sendCommand(cmd);
+                }
+            });
+        });
 
-        // Set specific servo value
-        function setServoValue(servoNum, value) {
-            const slider = document.getElementById(`servo${servoNum}`);
-            slider.value = value;
-            updateServo(servoNum, value);
-        }
+        // Hook preset buttons
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const servoIdxZero = Number(btn.dataset.servo); // 0..5 (element index)
+                const val = Number(btn.dataset.val);
+                const slider = document.getElementById(`servo${servoIdxZero}`);
+                if (slider) {
+                    slider.value = val;
+                    const idx = Number(slider.dataset.index); // 1..6
+                    const display = document.getElementById(`value${idx-1}`);
+                    if (display) display.textContent = `${val}°`;
+                }
+                // send if connected
+                if (isArmConnected) {
+                    const idx = servoIdxZero + 1;
+                    sendCommand(makeServoCommand(idx, val));
+                }
+            });
+        });
 
-        // Update movement speed
-        function updateSpeed(speed) {
-            document.getElementById('speedValue').textContent = speed;
-            sendCommand(`ss${speed}`);
-        }
+        // Speed control
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        speedSlider.addEventListener('input', () => {
+            const v = speedSlider.value;
+            speedValue.textContent = v;
+            if (isArmConnected) sendCommand(`ss${v}`);
+        });
 
-        // Initialize sliders
-        window.onload = function() {
-            // Set initial values for sliders
-            const initialPositions = [0, 90, 90, 90, 90, 0];
-            for (let i = 0; i < 6; i++) {
+        // System control buttons
+        document.getElementById('btnSave').addEventListener('click', () => { if (isArmConnected) sendCommand('SAVE'); });
+        document.getElementById('btnRun').addEventListener('click', () => { if (isArmConnected) sendCommand('RUN'); });
+        document.getElementById('btnReset').addEventListener('click', () => { if (isArmConnected) sendCommand('RESET'); });
+        document.getElementById('btnPause').addEventListener('click', () => { if (isArmConnected) sendCommand('PAUSE'); });
+        document.getElementById('btnResume').addEventListener('click', () => { if (isArmConnected) sendCommand('RESUME'); });
+
+        // Keyboard shortcuts (Ctrl+S Save, Ctrl+R Run, Ctrl+H Reset)
+        document.addEventListener('keydown', (ev) => {
+            if (!ev.ctrlKey) return;
+            if (ev.key === 's') { ev.preventDefault(); if (isArmConnected) sendCommand('SAVE'); }
+            if (ev.key === 'r') { ev.preventDefault(); if (isArmConnected) sendCommand('RUN'); }
+            if (ev.key === 'h') { ev.preventDefault(); if (isArmConnected) sendCommand('RESET'); }
+        });
+
+        // ===== Connect / disconnect UI actions =====
+        btnConnectBT.addEventListener('click', async () => {
+            await connectBluetooth();
+            updateConnectionStatus();
+        });
+
+        btnConnectSerial.addEventListener('click', async () => {
+            await connectSerial();
+            updateConnectionStatus();
+        });
+
+        btnArmConnect.addEventListener('click', async () => {
+            await armConnect();
+        });
+
+        btnArmDisconnect.addEventListener('click', async () => {
+            await armDisconnect();
+        });
+
+        // When user closes page, tidy resources
+        window.addEventListener('beforeunload', async () => {
+            try {
+                if (bluetoothDevice && bluetoothDevice.gatt && bluetoothDevice.gatt.connected) bluetoothDevice.gatt.disconnect();
+            } catch (e) {}
+            try { if (serialReader) await serialReader.cancel(); } catch (e){}
+            try { if (serialPort) await serialPort.close(); } catch (e){}
+        });
+
+        // Initialize UI initial positions
+        window.addEventListener('load', () => {
+            const init = [0,90,90,90,90,90]; // gripper initial 90 per requested range
+            for (let i=0;i<6;i++){
                 const slider = document.getElementById(`servo${i}`);
-                slider.value = initialPositions[i];
-                document.getElementById(`value${i}`).textContent = `${initialPositions[i]}°`;
+                const display = document.getElementById(`value${i}`);
+                if (slider) slider.value = init[i];
+                if (display) display.textContent = `${init[i]}°`;
             }
-            
-            addLog('🚀 Interface initialized', 'info');
-        };
-
-        // Add keyboard shortcuts
-        document.addEventListener('keydown', function(event) {
-            if (event.ctrlKey) {
-                switch(event.key) {
-                    case 's':
-                        event.preventDefault();
-                        sendCommand('SAVE');
-                        break;
-                    case 'r':
-                        event.preventDefault();
-                        sendCommand('RUN');
-                        break;
-                    case 'h':
-                        event.preventDefault();
-                        sendCommand('RESET');
-                        break;
-                }
-            }
+            speedValue.textContent = speedSlider.value;
+            setControlsEnabled(false);
+            addLog('Interface initialized', 'info');
         });
     </script>
 </body>
