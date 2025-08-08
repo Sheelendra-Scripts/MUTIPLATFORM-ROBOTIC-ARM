@@ -461,81 +461,79 @@
             }
         }
 
-        // HC-05 Bluetooth connection with Serial Port Profile
+        // Alternative HC-05 connection using different approach
         async function connectBluetooth() {
-            if (!isBluetoothAvailable()) {
-                addLog('❌ Web Bluetooth not supported in this browser', 'error');
-                showAlternativeConnections();
-                return;
-            }
-
+            addLog('⚠️ HC-05 Web Bluetooth has limitations in browsers', 'info');
+            addLog('🔄 Trying alternative connection method...', 'info');
+            
             try {
-                addLog('🔍 Searching for HC-05 Bluetooth module...', 'info');
-                addLog('💡 Make sure HC-05 is in pairing mode (LED blinking)', 'info');
-                
-                // HC-05 specific configuration
+                // Try basic device request without specific services
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: [
-                        '00001101-0000-1000-8000-00805f9b34fb', // Serial Port Profile (SPP)
-                        '0000ffe0-0000-1000-8000-00805f9b34fb'  // HC-05/HC-06 common service
-                    ]
+                    acceptAllDevices: true
                 });
 
-                addLog(`📱 Found device: ${bluetoothDevice.name || 'HC-05'}`, 'info');
-                addLog('🔗 Connecting to device...', 'info');
-
+                addLog(`📱 Found: ${bluetoothDevice.name || 'Unknown Device'}`, 'info');
+                
                 const server = await bluetoothDevice.gatt.connect();
+                const services = await server.getPrimaryServices();
                 
-                // Try Serial Port Profile first (most common for HC-05)
-                let service, characteristic;
+                addLog(`🔍 Found ${services.length} services`, 'info');
                 
-                try {
-                    // Try HC-05 specific service
-                    service = await server.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
-                    characteristic = await service.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb');
-                    addLog('✅ Connected using HC-05 service', 'received');
-                } catch (error1) {
+                // Try to find any writable characteristic
+                for (let service of services) {
                     try {
-                        // Try generic serial service
-                        service = await server.getPrimaryService('00001101-0000-1000-8000-00805f9b34fb');
                         const characteristics = await service.getCharacteristics();
-                        characteristic = characteristics[0]; // Use first available characteristic
-                        addLog('✅ Connected using Serial Port Profile', 'received');
-                    } catch (error2) {
-                        throw new Error('HC-05 module not found or not compatible. Make sure it\'s paired and in range.');
+                        for (let char of characteristics) {
+                            if (char.properties.write || char.properties.writeWithoutResponse) {
+                                window.bluetoothCharacteristic = char;
+                                addLog('✅ Found writable characteristic', 'received');
+                                
+                                isConnected = true;
+                                updateConnectionStatus(true);
+                                addLog('🎉 Bluetooth connected! Try USB Serial if this doesn\'t work.', 'received');
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        continue;
                     }
                 }
-
-                window.bluetoothCharacteristic = characteristic;
-
-                // Set up notifications for receiving data
-                try {
-                    await characteristic.startNotifications();
-                    characteristic.addEventListener('characteristicsvaluechanged', handleNotifications);
-                    addLog('📡 Notifications enabled', 'info');
-                } catch (notifyError) {
-                    addLog('⚠️ Could not enable notifications, but connection is established', 'info');
-                }
-
-                // Handle disconnection
-                bluetoothDevice.addEventListener('gattserverdisconnected', handleDisconnection);
-
-                isConnected = true;
-                updateConnectionStatus(true);
-                addLog('🎉 HC-05 Bluetooth connected successfully!', 'received');
-                addLog('✅ Ready to control robotic arm', 'received');
-
+                
+                throw new Error('No writable characteristic found');
+                
             } catch (error) {
-                addLog(`❌ HC-05 connection failed: ${error.message}`, 'error');
-                addLog('💡 Try the following solutions:', 'info');
-                addLog('  1. Make sure HC-05 is powered and LED is blinking', 'info');
-                addLog('  2. Pair HC-05 with Windows Bluetooth settings first', 'info');
-                addLog('  3. Use PIN: 1234 or 0000 if asked', 'info');
-                addLog('  4. Try USB Serial connection instead', 'info');
-                showAlternativeConnections();
-                console.error('Bluetooth connection error:', error);
+                addLog(`❌ Bluetooth failed: ${error.message}`, 'error');
+                addLog('💡 RECOMMENDED: Use USB Serial connection instead', 'info');
+                addLog('📱 Or use "Serial Bluetooth Terminal" app on phone', 'info');
+                showHC05Alternatives();
             }
+        }
+
+        // Show HC-05 specific alternatives
+        function showHC05Alternatives() {
+            const alternatives = `
+                <div style="background: #fff3cd; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #ffc107;">
+                    <h4 style="color: #856404;">🚨 HC-05 Web Bluetooth Issues</h4>
+                    <p style="margin: 10px 0; color: #856404;"><strong>Problem:</strong> HC-05 modules don't fully support Web Bluetooth standard</p>
+                    
+                    <div style="background: white; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                        <strong style="color: #28a745;">✅ BEST SOLUTION: USB Serial</strong>
+                        <p style="margin: 5px 0; font-size: 14px;">Connect Arduino directly via USB cable and use "Connect USB Serial"</p>
+                    </div>
+                    
+                    <div style="background: white; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                        <strong style="color: #007bff;">📱 MOBILE SOLUTION: Bluetooth App</strong>
+                        <p style="margin: 5px 0; font-size: 14px;">Use "Serial Bluetooth Terminal" app on Android/iOS</p>
+                        <p style="margin: 5px 0; font-size: 12px; color: #666;">Commands: s190, s245, s390, etc.</p>
+                    </div>
+                </div>
+            `;
+            
+            const logPanel = document.getElementById('logPanel');
+            const altDiv = document.createElement('div');
+            altDiv.innerHTML = alternatives;
+            logPanel.appendChild(altDiv);
+            logPanel.scrollTop = logPanel.scrollHeight;
         }
 
         // Handle Bluetooth disconnection
@@ -546,7 +544,7 @@
             addLog('🔄 Click "Connect Bluetooth" to reconnect', 'info');
         }
 
-        // Web Serial connection (USB)
+        // Enhanced Web Serial connection with debugging
         async function connectSerial() {
             if (!('serial' in navigator)) {
                 addLog('❌ Web Serial not supported in this browser', 'error');
@@ -567,6 +565,14 @@
                     flowControl: 'none'
                 });
 
+                addLog('✅ Serial port opened successfully', 'received');
+
+                // Send test command to check Arduino response
+                setTimeout(() => {
+                    addLog('🧪 Sending test command to Arduino...', 'info');
+                    sendCommand('STATUS');
+                }, 1000);
+
                 // Set up reader for incoming data
                 startSerialReader();
 
@@ -581,6 +587,10 @@
                 } else {
                     addLog(`❌ Serial connection failed: ${error.message}`, 'error');
                 }
+                addLog('💡 Troubleshooting:', 'info');
+                addLog('  1. Make sure Arduino is connected via USB', 'info');
+                addLog('  2. Check if Arduino IDE is closed', 'info');
+                addLog('  3. Try a different USB port', 'info');
                 console.error('Serial connection error:', error);
             }
         }
@@ -724,10 +734,12 @@
             }
         }
 
-        // Update servo position
+        // Update servo position with correct command format
         function updateServo(servoNum, value) {
             document.getElementById(`value${servoNum}`).textContent = `${value}°`;
-            sendCommand(`s${servoNum + 1}${value}`);
+            // Fixed command format: s + servo_number + position (e.g., s148 for servo 1, position 48)
+            const command = `s${servoNum + 1}${value}`;
+            sendCommand(command);
         }
 
         // Set specific servo value
