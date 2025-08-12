@@ -20,8 +20,6 @@ Other browsers currently do not support the required features.
 |--------------|----------------------|
 | ![Web UI Demo](demo_web.gif) | ![Arm in Action](demo_arm.gif) |
 
-*(Replace `demo_web.gif` and `demo_arm.gif` with your recorded GIFs in the repo root)*
-
 ---
 
 ## 📜 Features
@@ -33,14 +31,10 @@ Other browsers currently do not support the required features.
 
 ---
 
-## 📂 Project Structure
+##  Buy 3D-Printed Parts
 
-multiplatform_robotic_arm/
-│
-├── index.html # Main web interface
-├── robotic_arm.jpg # Image of the robotic arm
-├── circuit_diagram.png # Circuit wiring diagram
-├── demo_web.gif # Web UI control demo
-├── demo_arm.gif # Robotic arm physical movement demo
-├── ARDUINO/ # Arduino firmware code
-└── README.md # Project documentation
+If you’d rather purchase ready-made components than print them yourself, consider these options:
+
+- **[5-DOF Robotic Arm Plastic Parts (3D Printed, no electronics)](https://www.amazon.in/LINECRAFT-DESIGNS-Creativity-innovation-Reality/dp/B08Y7JZY99?dib=eyJ2IjoiMSJ9.aJl2brxEkKOLw464K-0Ccig3pAmeaVT-MIn6xXIXGr3igyK5XnN_9_GNA-aESs-Vnrwei6zc2vNcfYMRol27W5d2P4nSUbsfVpqEPcKGtf17XhZcVfZCBNkBExjjlolLBxxowaLOf8Swcs0RFabUOm_50PV4zPrSSfcUwfEQ2jzoBipzM7V-tOGTqClpYHuYXcCbJ8-JNKydVg51611kQYviS0vaKJi8lIT0IiBQbx65FND5pVkTXCrkpexduUosxW3mwy87dTYMK8bJH4GnQyiwA0DOCWCYMcxrm9NNP84.Lxw8pdm11txI8bEPeJKQqi8jIUBCnUpWE7i-rxzAdHA&dib_tag=se&keywords=robotic%2Barm&qid=1755025789&sr=8-5&th=1)** 
+
+
